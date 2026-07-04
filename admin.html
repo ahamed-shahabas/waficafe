@@ -29,6 +29,9 @@
   .row .unit{font-size:.75rem; opacity:.6;}
   .row .save{padding:8px 12px; background:var(--gold); color:#1a0f0a; border:none; border-radius:4px; font-size:.75rem; font-weight:700; cursor:pointer;}
   .row .save.saved{background:var(--green); color:#fff;}
+  .stock{padding:8px 10px; border:1px solid var(--line); border-radius:4px; font-size:.72rem; font-weight:700; cursor:pointer; white-space:nowrap;}
+  .stock.in{background:transparent; color:var(--green); border-color:var(--green);}
+  .stock.out{background:#c0392b; color:#fff; border-color:#c0392b;}
   .toast{
     position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--gold); color:#1a0f0a;
     padding:12px 22px; border-radius:24px; font-weight:700; opacity:0; transition:.3s; pointer-events:none; font-size:.85rem;
@@ -254,7 +257,7 @@
 
   async function loadOverridesAndRender(){
     const snap = await db.collection('prices').get();
-    snap.forEach(doc => overrides[doc.id] = doc.data().price);
+    snap.forEach(doc => overrides[doc.id] = doc.data());
     renderList();
   }
 
@@ -265,25 +268,30 @@
         if (it.sizes){
           return it.sizes.map((s, sIdx) => {
             const id = idFor(cat.key, idx, sIdx);
-            const current = overrides[id] !== undefined ? overrides[id] : priceToNumber(s[1]);
-            return rowHtml(id, `${it.name} (${s[0]})`, it.ar, current);
+            const ov = overrides[id];
+            const current = ov && ov.price !== undefined ? ov.price : priceToNumber(s[1]);
+            const available = !ov || ov.available !== false;
+            return rowHtml(id, `${it.name} (${s[0]})`, it.ar, current, available);
           }).join('');
         } else {
           const id = idFor(cat.key, idx);
-          const current = overrides[id] !== undefined ? overrides[id] : priceToNumber(it.price);
-          return rowHtml(id, it.name, it.ar, current);
+          const ov = overrides[id];
+          const current = ov && ov.price !== undefined ? ov.price : priceToNumber(it.price);
+          const available = !ov || ov.available !== false;
+          return rowHtml(id, it.name, it.ar, current, available);
         }
       }).join('');
       return `<div class="cat" data-cat="${cat.key}"><h2>${cat.en}</h2>${rows}</div>`;
     }).join('');
   }
 
-  function rowHtml(id, name, ar, price){
+  function rowHtml(id, name, ar, price, available){
     return `<div class="row" data-search="${(name+' '+(ar||'')).toLowerCase()}">
       <div class="nm">${name}${ar?`<span class="ar">${ar}</span>`:''}</div>
       <input type="number" step="0.5" min="0" id="in-${id}" value="${price}">
       <span class="unit">SR</span>
       <button class="save" id="btn-${id}" onclick="savePrice('${id}')">Save</button>
+      <button class="stock ${available?'in':'out'}" id="stock-${id}" onclick="toggleStock('${id}')">${available?'In Stock':'Out of Stock'}</button>
     </div>`;
   }
 
@@ -296,8 +304,8 @@
       await db.collection('prices').doc(id).set({
         price: val,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      overrides[id] = val;
+      }, { merge: true });
+      overrides[id] = Object.assign({}, overrides[id], { price: val });
       btn.textContent = 'Saved ✓';
       btn.classList.add('saved');
       showToast('Price updated');
@@ -306,6 +314,26 @@
       btn.textContent = 'Save';
       alert('Failed: ' + err.message);
     }
+  }
+
+  async function toggleStock(id){
+    const currentlyAvailable = !overrides[id] || overrides[id].available !== false;
+    const newVal = !currentlyAvailable;
+    const btn = document.getElementById('stock-'+id);
+    btn.disabled = true;
+    try {
+      await db.collection('prices').doc(id).set({
+        available: newVal,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      overrides[id] = Object.assign({}, overrides[id], { available: newVal });
+      btn.textContent = newVal ? 'In Stock' : 'Out of Stock';
+      btn.className = 'stock ' + (newVal ? 'in' : 'out');
+      showToast(newVal ? 'Marked back in stock' : 'Marked out of stock');
+    } catch(err){
+      alert('Failed: ' + err.message);
+    }
+    btn.disabled = false;
   }
 
   function filterList(){

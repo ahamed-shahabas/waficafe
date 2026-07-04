@@ -140,6 +140,9 @@
     max-width:640px; margin:60px auto 0; text-align:center; padding:20px 26px;
     border:1px solid var(--line); border-radius:4px; font-size:.8rem; line-height:1.7; color:var(--sand); opacity:.7;
   }
+  .out-of-stock{opacity:.4; position:relative;}
+  .out-of-stock .qty-ctrl{pointer-events:none;}
+  .out-of-stock .item-price, .out-of-stock .sprice{color:#c0392b !important; font-style:normal !important;}
 
   /* ORDERING */
   .qty-ctrl{display:flex; align-items:center; gap:9px;}
@@ -473,11 +476,13 @@
   const panelsEl = document.getElementById('menuPanels');
   const CART = {};      // id -> {ar, en, size, qty}
   const PRICES = {};    // id -> numeric price (overridable by admin)
+  const STOCK = {};     // id -> false if out of stock (default true)
 
   function idFor(catKey, i, sIdx){ return sIdx===undefined ? `${catKey}-${i}` : `${catKey}-${i}-${sIdx}`; }
   function esc(s){ return String(s||'').replace(/'/g, "\\'"); }
 
   function changeQty(id, delta, ar, en, size){
+    if (delta > 0 && STOCK[id] === false) return;
     const cur = CART[id] || { ar, en, size, qty:0 };
     cur.price = PRICES[id] || 0;
     cur.qty = Math.max(0, cur.qty + delta);
@@ -519,7 +524,7 @@
           PRICES[id] = priceToNumber(s[1]);
           return `<div class="size-row">
             <span class="slabel">${s[0]}</span>
-            <span class="sprice" id="pd-${id}">${s[1]}</span>
+            <span class="sprice" id="pd-${id}" data-scope="size">${s[1]}</span>
             <div class="qty-ctrl">
               <button class="qty-btn" onclick="changeQty('${id}',-1,'${esc(it.ar)}','${esc(sizeName)}','${esc(s[0])}')">–</button>
               <span class="qty-num" data-for="${id}">0</span>
@@ -537,7 +542,7 @@
         return `<div class="item">
           <div class="item-name">${it.ar ? `<span class="item-ar">${it.ar}</span>` : ''}<span class="item-en">${it.name}</span>${descTxt}</div>
           <div style="display:flex; align-items:center; gap:14px;">
-            <span class="item-price" id="pd-${id}">${it.price}</span>
+            <span class="item-price" id="pd-${id}" data-scope="item">${it.price}</span>
             <div class="qty-ctrl">
               <button class="qty-btn" onclick="changeQty('${id}',-1,'${esc(it.ar)}','${esc(it.name)}')">–</button>
               <span class="qty-num" data-for="${id}">0</span>
@@ -699,15 +704,30 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
 
-  // live price overrides from admin.html
+  // live price + stock overrides from admin.html
   db.collection('prices').onSnapshot(snap => {
     snap.docChanges().forEach(change => {
       const id = change.doc.id;
-      const data = change.doc.data();
       if (change.type === 'removed') return;
-      PRICES[id] = data.price;
+      const data = change.doc.data();
+
+      if (data.price !== undefined){
+        PRICES[id] = data.price;
+        const el = document.getElementById('pd-' + id);
+        if (el && STOCK[id] !== false){
+          el.textContent = (data.price % 1 === 0 ? data.price : data.price.toFixed(2)) + ' SR';
+        }
+      }
+
+      const available = data.available !== false;
+      STOCK[id] = available;
       const el = document.getElementById('pd-' + id);
-      if (el) el.textContent = (data.price % 1 === 0 ? data.price : data.price.toFixed(2)) + ' SR';
+      if (el){
+        const container = el.closest(el.dataset.scope === 'size' ? '.size-row' : '.item');
+        if (container) container.classList.toggle('out-of-stock', !available);
+        if (!available) el.textContent = 'Out of Stock';
+        else if (data.price !== undefined) el.textContent = (data.price % 1 === 0 ? data.price : data.price.toFixed(2)) + ' SR';
+      }
     });
   });
 </script>
