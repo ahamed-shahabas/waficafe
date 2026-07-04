@@ -146,6 +146,10 @@
       });
   }
 
+  function escapeHtml(str){
+    return String(str||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
   function render(docs){
     let sales = 0, itemsCount = 0;
     const itemTotals = {};
@@ -170,7 +174,7 @@
     document.getElementById('recentOrders').innerHTML = docs.length ? docs.slice(0,20).map(doc => {
       const o = doc.data();
       const t = o.createdAt ? o.createdAt.toDate().toLocaleTimeString('en-GB',{timeZone:'Asia/Riyadh',hour:'2-digit',minute:'2-digit'}) : '';
-      return `<div class="order-row"><span class="tbl">${o.table||'—'} · ${t}</span><span class="amt">${(o.total||0).toFixed(0)} SR</span></div>`;
+      return `<div class="order-row"><span class="tbl">${escapeHtml(o.table)||'—'} · ${t}</span><span class="amt">${(o.total||0).toFixed(0)} SR</span></div>`;
     }).join('') : '<div class="empty">No orders yet today</div>';
   }
 </script>

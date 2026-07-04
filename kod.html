@@ -148,6 +148,10 @@
       });
   }
 
+  function escapeHtml(str){
+    return String(str||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
   function timeAgo(ts){
     if (!ts) return '';
     const mins = Math.floor((Date.now() - ts.toDate().getTime())/60000);
@@ -170,7 +174,7 @@
       `).join('');
       return `<div class="card ${o.status==='preparing'?'preparing':''}" id="card-${doc.id}">
         <div class="card-head">
-          <div class="tbl">${o.table||'—'}</div>
+          <div class="tbl">${escapeHtml(o.table)||'—'}</div>
           <div class="time">${timeAgo(o.createdAt)}</div>
         </div>
         <span class="type">${o.type||''}</span>
@@ -204,7 +208,7 @@
       <div class="tk-line"></div>
       <div class="tk-center tk-title">KITCHEN ORDER</div>
       <div class="tk-line"></div>
-      <div class="tk-row"><span>Table/Name</span><span>${o.table||'—'}</span></div>
+      <div class="tk-row"><span>Table/Name</span><span>${escapeHtml(o.table)||'—'}</span></div>
       <div class="tk-row"><span>Type</span><span>${o.type||''}</span></div>
       <div class="tk-row"><span>Date</span><span>${dateStr}</span></div>
       <div class="tk-row"><span>Time</span><span>${timeStr}</span></div>
