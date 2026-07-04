@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wafi Café — Sales Dashboard</title>
+<style>
+  :root{ --bg:#12100e; --card:#1d1a16; --line:#3a352c; --gold:#c9982f; --cream:#f6ecd9; --green:#2e8b57; }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--cream); font-family:'Segoe UI', Arial, sans-serif; min-height:100vh;}
+  header{padding:16px 20px; background:#000; border-bottom:2px solid var(--gold); display:flex; justify-content:space-between; align-items:center;}
+  header h1{font-size:1.1rem; color:var(--gold);}
+  header button{background:transparent; border:1px solid var(--line); color:var(--cream); padding:7px 12px; border-radius:4px; font-size:.8rem;}
+
+  #loginWrap{max-width:320px; margin:100px auto; padding:28px; background:var(--card); border:1px solid var(--line); border-radius:8px;}
+  #loginWrap h2{color:var(--gold); margin-bottom:18px; text-align:center;}
+  #loginWrap input{width:100%; padding:12px; margin-bottom:12px; border:1px solid var(--line); border-radius:4px; background:#0f0d0b; color:var(--cream); font-size:1rem;}
+  #loginWrap button{width:100%; padding:13px; background:var(--gold); color:#1a0f0a; border:none; border-radius:4px; font-weight:700; font-size:1rem;}
+  #loginErr{color:#c0392b; font-size:.85rem; margin-top:8px; text-align:center; min-height:18px;}
+
+  main{display:none; padding:20px; max-width:600px; margin:0 auto;}
+  .date-row{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;}
+  .date-row input{background:var(--card); border:1px solid var(--line); color:var(--cream); padding:8px 10px; border-radius:4px;}
+
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:22px;}
+  .stat{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:20px; text-align:center;}
+  .stat .num{font-size:2rem; font-weight:700; color:var(--gold);}
+  .stat .lbl{font-size:.8rem; opacity:.75; margin-top:4px; text-transform:uppercase; letter-spacing:.05em;}
+
+  .section-title{font-size:.95rem; color:var(--gold); margin:20px 0 10px; text-transform:uppercase; letter-spacing:.06em;}
+  .item-row{display:flex; justify-content:space-between; background:var(--card); border:1px solid var(--line); border-radius:6px; padding:10px 14px; margin-bottom:8px; font-size:.9rem;}
+  .item-row .qty{color:var(--gold); font-weight:700;}
+
+  .order-row{display:flex; justify-content:space-between; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:6px; padding:10px 14px; margin-bottom:8px; font-size:.85rem;}
+  .order-row .tbl{font-weight:700;}
+  .order-row .amt{color:var(--gold); font-weight:700;}
+  .empty{text-align:center; opacity:.5; padding:30px 0;}
+
+  .del-card{background:var(--card); border:1px solid #c0392b; border-radius:8px; padding:12px 14px; margin-bottom:10px;}
+  .del-card .top{display:flex; justify-content:space-between; font-size:.9rem; font-weight:700; margin-bottom:4px;}
+  .del-card .reason{font-size:.82rem; opacity:.85; margin-bottom:4px;}
+  .del-card .meta{font-size:.72rem; opacity:.6; margin-bottom:10px;}
+  .del-actions{display:flex; gap:8px;}
+  .del-actions button{flex:1; padding:9px; border:none; border-radius:4px; font-size:.82rem; font-weight:700; cursor:pointer;}
+  .btn-approve{background:#c0392b; color:#fff;}
+  .btn-reject{background:transparent; border:1px solid var(--line) !important; color:var(--cream);}
+  .badge{display:inline-block; font-size:.65rem; padding:2px 8px; border-radius:10px; background:#c0392b; color:#fff; margin-left:6px;}
+
+  .dead-row{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:9px 14px; margin-bottom:8px; font-size:.82rem; opacity:.85;}
+  .dead-row .top{display:flex; justify-content:space-between; font-weight:700;}
+  .dead-row .reason{font-size:.75rem; opacity:.75; margin-top:2px;}
+</style>
+</head>
+<body>
+
+<div id="loginWrap">
+  <h2>Owner Login</h2>
+  <input id="lEmail" type="email" placeholder="Staff email">
+  <input id="lPass" type="password" placeholder="Password">
+  <button onclick="doLogin()">Login</button>
+  <div id="loginErr"></div>
+</div>
+
+<header id="hdr" style="display:none;">
+  <h1>📊 Wafi Café — Sales</h1>
+  <button onclick="doLogout()">Logout</button>
+</header>
+
+<main id="main">
+  <div class="date-row">
+    <input type="date" id="dateInput">
+    <span id="liveTag" style="font-size:.75rem; color:var(--green);">● live</span>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat"><div class="num" id="totalSales">0</div><div class="lbl">Sales (SR)</div></div>
+    <div class="stat"><div class="num" id="totalOrders">0</div><div class="lbl">Orders</div></div>
+    <div class="stat"><div class="num" id="avgOrder">0</div><div class="lbl">Avg / Order (SR)</div></div>
+    <div class="stat"><div class="num" id="totalItems">0</div><div class="lbl">Items Sold</div></div>
+  </div>
+
+  <div class="section-title">Delete Requests <span id="delCount"></span></div>
+  <div id="delRequests"><div class="empty">No pending delete requests</div></div>
+
+  <div class="section-title">Top Items Today</div>
+  <div id="topItems"></div>
+
+  <div class="section-title">Recent Orders</div>
+  <div id="recentOrders"></div>
+
+  <div class="section-title">Deleted Orders</div>
+  <div id="deletedOrders"><div class="empty">No deleted orders</div></div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDdOB4FfhuSBzR8NV0datVU8B9_GcHmof4",
+    authDomain: "waficafe-f6453.firebaseapp.com",
+    projectId: "waficafe-f6453",
+    storageBucket: "waficafe-f6453.firebasestorage.app",
+    messagingSenderId: "524923915772",
+    appId: "1:524923915772:web:b3cd50bd1e7e663af7f679",
+    measurementId: "G-PX0Z8ETGN4"
+  };
+  firebase.initializeApp(firebaseConfig);
+
+  // App Check — proves requests come from this real site, blocks Postman/curl copy-paste attacks
+  const appCheck = firebase.appCheck();
+  appCheck.activate('6LeXWkQtAAAAAKIL4KopKLZka47Z6BaHWzXybol3', true);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  function doLogin(){
+    const email = document.getElementById('lEmail').value.trim();
+    const pass = document.getElementById('lPass').value;
+    document.getElementById('loginErr').textContent = '';
+    auth.signInWithEmailAndPassword(email, pass).catch(err=>{
+      document.getElementById('loginErr').textContent = 'Login failed: ' + err.message;
+    });
+  }
+  function doLogout(){ auth.signOut(); }
+
+  // Riyadh is UTC+3, no DST
+  function riyadhDayBounds(dateStr){
+    const [y,m,d] = dateStr.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m-1, d, -3, 0, 0)); // 00:00 Riyadh = 21:00 previous day UTC
+    const end = new Date(start.getTime() + 24*60*60*1000);
+    return [start, end];
+  }
+  function todayRiyadhStr(){
+    const now = new Date();
+    const riyadh = new Date(now.getTime() + (3*60 - now.getTimezoneOffset())*60000);
+    return riyadh.toISOString().slice(0,10);
+  }
+
+  let unsub = null;
+  const dateInput = document.getElementById('dateInput');
+  dateInput.value = todayRiyadhStr();
+  dateInput.addEventListener('change', loadDay);
+
+  let unsubDel = null, unsubDeleted = null;
+
+  auth.onAuthStateChanged(user => {
+    if (user){
+      document.getElementById('loginWrap').style.display = 'none';
+      document.getElementById('hdr').style.display = 'flex';
+      document.getElementById('main').style.display = 'block';
+      loadDay();
+      listenDeleteRequests();
+      listenDeletedOrders();
+    } else {
+      document.getElementById('loginWrap').style.display = 'block';
+      document.getElementById('hdr').style.display = 'none';
+      document.getElementById('main').style.display = 'none';
+      if (unsub) unsub();
+      if (unsubDel) unsubDel();
+      if (unsubDeleted) unsubDeleted();
+    }
+  });
+
+  function fmtTime(ts){
+    return ts ? ts.toDate().toLocaleTimeString('en-GB',{timeZone:'Asia/Riyadh',hour:'2-digit',minute:'2-digit'}) : '';
+  }
+
+  function listenDeleteRequests(){
+    unsubDel = db.collection('orders').where('status','==','delete_requested')
+      .onSnapshot(snap => {
+        const docs = snap.docs.sort((a,b) => {
+          const ta = a.data().deleteRequestedAt ? a.data().deleteRequestedAt.toMillis() : 0;
+          const tb = b.data().deleteRequestedAt ? b.data().deleteRequestedAt.toMillis() : 0;
+          return tb - ta;
+        });
+        document.getElementById('delCount').innerHTML = docs.length ? `<span class="badge">${docs.length}</span>` : '';
+        document.getElementById('delRequests').innerHTML = docs.length ? docs.map(doc => {
+          const o = doc.data();
+          return `<div class="del-card">
+            <div class="top"><span>${escapeHtml(o.table)||'—'} · ${(o.total||0).toFixed(2)} SR</span><span>${fmtTime(o.deleteRequestedAt)}</span></div>
+            <div class="reason">Reason: ${escapeHtml(o.deleteReason)||'(no reason given)'}</div>
+            <div class="meta">Requested by ${escapeHtml(o.deleteRequestedBy)||'kitchen'}</div>
+            <div class="del-actions">
+              <button class="btn-approve" onclick="approveDelete('${doc.id}')">Approve Delete</button>
+              <button class="btn-reject" onclick="rejectDelete('${doc.id}')">Reject / Restore</button>
+            </div>
+          </div>`;
+        }).join('') : '<div class="empty">No pending delete requests</div>';
+      });
+  }
+
+  function listenDeletedOrders(){
+    unsubDeleted = db.collection('orders').where('status','==','deleted')
+      .onSnapshot(snap => {
+        const docs = snap.docs.sort((a,b) => {
+          const ta = a.data().deletedAt ? a.data().deletedAt.toMillis() : 0;
+          const tb = b.data().deletedAt ? b.data().deletedAt.toMillis() : 0;
+          return tb - ta;
+        }).slice(0,30);
+        document.getElementById('deletedOrders').innerHTML = docs.length ? docs.map(doc => {
+          const o = doc.data();
+          return `<div class="dead-row">
+            <div class="top"><span>${escapeHtml(o.table)||'—'} · ${(o.total||0).toFixed(2)} SR</span><span>${fmtTime(o.deletedAt)}</span></div>
+            <div class="reason">Reason: ${escapeHtml(o.deleteReason)||'—'} · by ${escapeHtml(o.deleteRequestedBy)||'kitchen'}, approved by ${escapeHtml(o.deletedBy)||'admin'}</div>
+          </div>`;
+        }).join('') : '<div class="empty">No deleted orders</div>';
+      });
+  }
+
+  function approveDelete(id){
+    if (!confirm('Approve deletion of this order? This cannot be undone.')) return;
+    db.collection('orders').doc(id).update({
+      status: 'deleted',
+      deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      deletedBy: (auth.currentUser && auth.currentUser.email) || 'admin'
+    }).catch(err => alert('Failed: '+err.message));
+  }
+
+  function rejectDelete(id){
+    db.collection('orders').doc(id).get().then(doc => {
+      const o = doc.data();
+      db.collection('orders').doc(id).update({
+        status: o.previousStatus || 'new',
+        deleteReason: firebase.firestore.FieldValue.delete(),
+        deleteRequestedAt: firebase.firestore.FieldValue.delete(),
+        deleteRequestedBy: firebase.firestore.FieldValue.delete(),
+        previousStatus: firebase.firestore.FieldValue.delete()
+      });
+    }).catch(err => alert('Failed: '+err.message));
+  }
+
+  function loadDay(){
+    if (unsub) unsub();
+    const [start, end] = riyadhDayBounds(dateInput.value);
+    document.getElementById('liveTag').style.display = dateInput.value === todayRiyadhStr() ? 'inline' : 'none';
+    unsub = db.collection('orders')
+      .where('createdAt','>=', firebase.firestore.Timestamp.fromDate(start))
+      .where('createdAt','<', firebase.firestore.Timestamp.fromDate(end))
+      .where('status','==','done')
+      .orderBy('createdAt','desc')
+      .onSnapshot(snap => render(snap.docs), err => {
+        console.error(err);
+        document.getElementById('recentOrders').innerHTML = '<div class="empty">Index needed — check Firestore console link in error (F12 console)</div>';
+      });
+  }
+
+  function escapeHtml(str){
+    return String(str||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  function render(docs){
+    let sales = 0, itemsCount = 0;
+    const itemTotals = {};
+    docs.forEach(doc => {
+      const o = doc.data();
+      sales += o.total || 0;
+      (o.items||[]).forEach(l => {
+        itemsCount += l.qty;
+        itemTotals[l.en] = (itemTotals[l.en]||0) + l.qty;
+      });
+    });
+    document.getElementById('totalSales').textContent = sales.toFixed(0);
+    document.getElementById('totalOrders').textContent = docs.length;
+    document.getElementById('avgOrder').textContent = docs.length ? (sales/docs.length).toFixed(0) : '0';
+    document.getElementById('totalItems').textContent = itemsCount;
+
+    const top = Object.entries(itemTotals).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    document.getElementById('topItems').innerHTML = top.length ? top.map(([name,qty]) =>
+      `<div class="item-row"><span>${name}</span><span class="qty">${qty}×</span></div>`
+    ).join('') : '<div class="empty">No sales yet today</div>';
+
+    document.getElementById('recentOrders').innerHTML = docs.length ? docs.slice(0,20).map(doc => {
+      const o = doc.data();
+      const t = o.createdAt ? o.createdAt.toDate().toLocaleTimeString('en-GB',{timeZone:'Asia/Riyadh',hour:'2-digit',minute:'2-digit'}) : '';
+      return `<div class="order-row"><span class="tbl">${escapeHtml(o.table)||'—'} · ${t}</span><span class="amt">${(o.total||0).toFixed(0)} SR</span></div>`;
+    }).join('') : '<div class="empty">No orders yet today</div>';
+  }
+</script>
+</body>
+</html>
