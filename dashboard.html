@@ -35,6 +35,20 @@
   .order-row .tbl{font-weight:700;}
   .order-row .amt{color:var(--gold); font-weight:700;}
   .empty{text-align:center; opacity:.5; padding:30px 0;}
+
+  .del-card{background:var(--card); border:1px solid #c0392b; border-radius:8px; padding:12px 14px; margin-bottom:10px;}
+  .del-card .top{display:flex; justify-content:space-between; font-size:.9rem; font-weight:700; margin-bottom:4px;}
+  .del-card .reason{font-size:.82rem; opacity:.85; margin-bottom:4px;}
+  .del-card .meta{font-size:.72rem; opacity:.6; margin-bottom:10px;}
+  .del-actions{display:flex; gap:8px;}
+  .del-actions button{flex:1; padding:9px; border:none; border-radius:4px; font-size:.82rem; font-weight:700; cursor:pointer;}
+  .btn-approve{background:#c0392b; color:#fff;}
+  .btn-reject{background:transparent; border:1px solid var(--line) !important; color:var(--cream);}
+  .badge{display:inline-block; font-size:.65rem; padding:2px 8px; border-radius:10px; background:#c0392b; color:#fff; margin-left:6px;}
+
+  .dead-row{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:9px 14px; margin-bottom:8px; font-size:.82rem; opacity:.85;}
+  .dead-row .top{display:flex; justify-content:space-between; font-weight:700;}
+  .dead-row .reason{font-size:.75rem; opacity:.75; margin-top:2px;}
 </style>
 </head>
 <body>
@@ -65,11 +79,17 @@
     <div class="stat"><div class="num" id="totalItems">0</div><div class="lbl">Items Sold</div></div>
   </div>
 
+  <div class="section-title">Delete Requests <span id="delCount"></span></div>
+  <div id="delRequests"><div class="empty">No pending delete requests</div></div>
+
   <div class="section-title">Top Items Today</div>
   <div id="topItems"></div>
 
   <div class="section-title">Recent Orders</div>
   <div id="recentOrders"></div>
+
+  <div class="section-title">Deleted Orders</div>
+  <div id="deletedOrders"><div class="empty">No deleted orders</div></div>
 </main>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -117,19 +137,93 @@
   dateInput.value = todayRiyadhStr();
   dateInput.addEventListener('change', loadDay);
 
+  let unsubDel = null, unsubDeleted = null;
+
   auth.onAuthStateChanged(user => {
     if (user){
       document.getElementById('loginWrap').style.display = 'none';
       document.getElementById('hdr').style.display = 'flex';
       document.getElementById('main').style.display = 'block';
       loadDay();
+      listenDeleteRequests();
+      listenDeletedOrders();
     } else {
       document.getElementById('loginWrap').style.display = 'block';
       document.getElementById('hdr').style.display = 'none';
       document.getElementById('main').style.display = 'none';
       if (unsub) unsub();
+      if (unsubDel) unsubDel();
+      if (unsubDeleted) unsubDeleted();
     }
   });
+
+  function fmtTime(ts){
+    return ts ? ts.toDate().toLocaleTimeString('en-GB',{timeZone:'Asia/Riyadh',hour:'2-digit',minute:'2-digit'}) : '';
+  }
+
+  function listenDeleteRequests(){
+    unsubDel = db.collection('orders').where('status','==','delete_requested')
+      .onSnapshot(snap => {
+        const docs = snap.docs.sort((a,b) => {
+          const ta = a.data().deleteRequestedAt ? a.data().deleteRequestedAt.toMillis() : 0;
+          const tb = b.data().deleteRequestedAt ? b.data().deleteRequestedAt.toMillis() : 0;
+          return tb - ta;
+        });
+        document.getElementById('delCount').innerHTML = docs.length ? `<span class="badge">${docs.length}</span>` : '';
+        document.getElementById('delRequests').innerHTML = docs.length ? docs.map(doc => {
+          const o = doc.data();
+          return `<div class="del-card">
+            <div class="top"><span>${escapeHtml(o.table)||'—'} · ${(o.total||0).toFixed(2)} SR</span><span>${fmtTime(o.deleteRequestedAt)}</span></div>
+            <div class="reason">Reason: ${escapeHtml(o.deleteReason)||'(no reason given)'}</div>
+            <div class="meta">Requested by ${escapeHtml(o.deleteRequestedBy)||'kitchen'}</div>
+            <div class="del-actions">
+              <button class="btn-approve" onclick="approveDelete('${doc.id}')">Approve Delete</button>
+              <button class="btn-reject" onclick="rejectDelete('${doc.id}')">Reject / Restore</button>
+            </div>
+          </div>`;
+        }).join('') : '<div class="empty">No pending delete requests</div>';
+      });
+  }
+
+  function listenDeletedOrders(){
+    unsubDeleted = db.collection('orders').where('status','==','deleted')
+      .onSnapshot(snap => {
+        const docs = snap.docs.sort((a,b) => {
+          const ta = a.data().deletedAt ? a.data().deletedAt.toMillis() : 0;
+          const tb = b.data().deletedAt ? b.data().deletedAt.toMillis() : 0;
+          return tb - ta;
+        }).slice(0,30);
+        document.getElementById('deletedOrders').innerHTML = docs.length ? docs.map(doc => {
+          const o = doc.data();
+          return `<div class="dead-row">
+            <div class="top"><span>${escapeHtml(o.table)||'—'} · ${(o.total||0).toFixed(2)} SR</span><span>${fmtTime(o.deletedAt)}</span></div>
+            <div class="reason">Reason: ${escapeHtml(o.deleteReason)||'—'} · by ${escapeHtml(o.deleteRequestedBy)||'kitchen'}, approved by ${escapeHtml(o.deletedBy)||'admin'}</div>
+          </div>`;
+        }).join('') : '<div class="empty">No deleted orders</div>';
+      });
+  }
+
+  function approveDelete(id){
+    if (!confirm('Approve deletion of this order? This cannot be undone.')) return;
+    db.collection('orders').doc(id).update({
+      status: 'deleted',
+      deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      deletedBy: (auth.currentUser && auth.currentUser.email) || 'admin'
+    }).catch(err => alert('Failed: '+err.message));
+  }
+
+  function rejectDelete(id){
+    db.collection('orders').doc(id).get().then(doc => {
+      const o = doc.data();
+      db.collection('orders').doc(id).update({
+        status: o.previousStatus || 'new',
+        deleteReason: firebase.firestore.FieldValue.delete(),
+        deleteRequestedAt: firebase.firestore.FieldValue.delete(),
+        deleteRequestedBy: firebase.firestore.FieldValue.delete(),
+        previousStatus: firebase.firestore.FieldValue.delete()
+      });
+    }).catch(err => alert('Failed: '+err.message));
+  }
 
   function loadDay(){
     if (unsub) unsub();
