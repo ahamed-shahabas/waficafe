@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wafi Café — Table QR Codes</title>
+<style>
+  body{font-family:Arial, sans-serif; background:#eee; padding:20px;}
+  .setup{max-width:500px; margin:0 auto 24px; background:#fff; padding:16px 20px; border-radius:8px;}
+  .setup input{width:100%; padding:10px; margin:8px 0; border:1px solid #ccc; border-radius:4px; font-size:.95rem;}
+  .setup button{padding:10px 18px; background:#c9982f; border:none; border-radius:4px; font-weight:700; cursor:pointer;}
+  .grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; max-width:900px; margin:0 auto;}
+  .tile{background:#fff; border:1px solid #ccc; border-radius:8px; padding:16px; text-align:center; page-break-inside:avoid;}
+  .tile img{width:100%; max-width:200px;}
+  .tile h3{margin-top:8px; color:#2a1810;}
+  .tile p{font-size:.75rem; color:#666; word-break:break-all;}
+  @media print{ .setup, .noprint{display:none;} body{background:#fff;} }
+</style>
+</head>
+<body>
+
+<div class="setup noprint">
+  <label>Your GitHub Pages URL (no trailing slash), e.g. https://yourname.github.io/wafi-cafe</label>
+  <input id="baseUrl" type="text" placeholder="https://yourname.github.io/wafi-cafe" value="https://yourname.github.io/wafi-cafe">
+  <label>Number of tables</label>
+  <input id="tableCount" type="number" value="15" min="1" max="50">
+  <button onclick="build()">Generate QR Codes</button>
+  &nbsp; <button onclick="window.print()">Print</button>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+  function build(){
+    const base = document.getElementById('baseUrl').value.trim().replace(/\/$/,'');
+    const count = parseInt(document.getElementById('tableCount').value) || 15;
+    const grid = document.getElementById('grid');
+    let html = '';
+    for (let i=1; i<=count; i++){
+      const link = `${base}/index.html?t=${i}`;
+      const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(link)}`;
+      html += `<div class="tile">
+        <img src="${qrImg}" alt="QR Table ${i}">
+        <h3>Table ${i}</h3>
+        <p>${link}</p>
+      </div>`;
+    }
+    grid.innerHTML = html;
+  }
+  build();
+</script>
+</body>
+</html>
